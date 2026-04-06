@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Hamster Elite Casino</title>
+
+<style>
+body { margin:0; background:#0b0f1a; color:white; font-family:Arial; text-align:center;}
+header { padding:10px; background:#111827;}
+.menu { display:flex; }
+.menu button { flex:1; padding:10px; border:none; background:#22c55e; color:white;}
+
+.screen { display:none; padding:10px;}
+.active { display:block;}
+
+.grid { display:grid; grid-template-columns:repeat(5,60px); gap:5px; justify-content:center;}
+.cell { width:60px; height:60px; background:#374151; display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:8px;}
+
+.slot { font-size:40px; display:inline-block; width:60px; }
+.spin { animation:spin 0.5s infinite linear; }
+
+@keyframes spin {
+  from { transform:rotateX(0deg); }
+  to { transform:rotateX(360deg); }
+}
+
+canvas { background:black; margin-top:10px;}
+</style>
+</head>
+
+<body>
+
+<header>
+<h2>🐹 Hamster Elite</h2>
+<p id="balance"></p>
+</header>
+
+<div class="menu">
+<button onclick="show('games')">🎰 Игры</button>
+<button onclick="show('profile')">👤 Профиль</button>
+<button id="adminBtn" onclick="showAdmin()">👑 Админ</button>
+</div>
+
+<div id="games" class="screen active">
+<button onclick="startMines()">🎯 Mines</button>
+<button onclick="startSlots()">🎰 Slots</button>
+<button onclick="startCrash()">📊 Crash</button>
+
+<div id="gameArea"></div>
+<canvas id="graph" width="300" height="150"></canvas>
+</div>
+
+<div id="profile" class="screen">
+<input id="nameInput" placeholder="Имя">
+<button onclick="setName()">Сохранить</button>
+<p id="name"></p>
+</div>
+
+<div id="admin" class="screen">
+<button onclick="addMoney()">Выдать деньги</button>
+</div>
+
+<script>
+
+// ===== ДАННЫЕ =====
+let player = JSON.parse(localStorage.getItem("player")) || {
+  name:"",
+  balance:1000
+};
+
+function save(){localStorage.setItem("player", JSON.stringify(player));}
+
+// ===== ИМЯ =====
+function setName(){
+  let val = nameInput.value;
+  if(!val) return alert("Введите имя!");
+  player.name = val;
+  update();
+}
+
+// ===== UI =====
+function update(){
+
+  if(!player.name){
+    show("profile");
+  }
+
+  balance.innerText="💰 "+player.balance+"$";
+  name.innerText="Имя: "+player.name;
+
+  // 👑 только Kevin
+  if(player.name === "Kevin"){
+    adminBtn.style.display="block";
+  } else {
+    adminBtn.style.display="none";
+  }
+
+  save();
+}
+
+function show(id){
+  if(id==="admin" && player.name!=="Kevin"){
+    alert("❌ Нет доступа");
+    return;
+  }
+
+  document.querySelectorAll('.screen').forEach(e=>e.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function showAdmin(){
+  if(player.name!=="Kevin") return alert("❌ Нет доступа");
+  show("admin");
+}
+
+// ===== 🎯 MINES =====
+let mines=[], opened=0, multi=1;
+
+function startMines(){
+  gameArea.innerHTML = '<div class="grid" id="grid"></div>';
+  mines = Array(25).fill(0);
+  opened=0;
+  multi=1;
+
+  for(let i=0;i<5;i++){
+    mines[Math.floor(Math.random()*25)] = 1;
+  }
+
+  mines.forEach((m,i)=>{
+    let cell = document.createElement("div");
+    cell.className="cell";
+
+    cell.onclick=()=>{
+      if(cell.innerText) return;
+
+      if(m){
+        cell.innerText="💣";
+        alert("💥 Проигрыш x"+multi.toFixed(2));
+        player.balance -=100;
+        update();
+      } else {
+        cell.innerText="💎";
+        opened++;
+        multi += 0.2;
+      }
+    };
+
+    grid.appendChild(cell);
+  });
+
+  let btn = document.createElement("button");
+  btn.innerText="Забрать x"+multi.toFixed(2);
+  btn.onclick=()=>{
+    let win = 100 * multi;
+    player.balance += win;
+    alert("🎉 "+win);
+    update();
+  };
+
+  gameArea.appendChild(btn);
+}
+
+// ===== 🎰 SLOTS =====
+function startSlots(){
+  gameArea.innerHTML = `
+  <div id="slots">
+    <span class="slot spin" id="s1">🍒</span>
+    <span class="slot spin" id="s2">🍒</span>
+    <span class="slot spin" id="s3">🍒</span>
+  </div>
+  `;
+
+  let symbols=["🍒","🍋","💎","7️⃣"];
+
+  let audio = new Audio("https://www.soundjay.com/button/button-16.mp3");
+  audio.play();
+
+  setTimeout(()=>{
+    let a = symbols[Math.floor(Math.random()*4)];
+    let b = symbols[Math.floor(Math.random()*4)];
+    let c = symbols[Math.floor(Math.random()*4)];
+
+    s1.classList.remove("spin");
+    s2.classList.remove("spin");
+    s3.classList.remove("spin");
+
+    s1.innerText=a;
+    s2.innerText=b;
+    s3.innerText=c;
+
+    if(a===b && b===c){
+      player.balance+=500;
+      alert("🎰 JACKPOT");
+    } else {
+      player.balance-=100;
+    }
+
+    update();
+  },1000);
+}
+
+// ===== 📊 CRASH =====
+function startCrash(){
+  let ctx = graph.getContext("2d");
+  ctx.clearRect(0,0,300,150);
+
+  let x=0, y=140, multi=1;
+
+  let interval = setInterval(()=>{
+    x+=5;
+    multi+=0.1;
+    y -= multi;
+
+    ctx.fillStyle="lime";
+    ctx.fillRect(x,y,2,2);
+
+    if(Math.random()<0.05){
+      clearInterval(interval);
+      alert("💥 Краш x"+multi.toFixed(2));
+    }
+  },100);
+}
+
+// ===== 👑 АДМИН =====
+function addMoney(){
+  let sum = prompt("Сколько?");
+  player.balance += Number(sum);
+  update();
+}
+
+update();
+
+</script>
+
+</body>
+</html>
